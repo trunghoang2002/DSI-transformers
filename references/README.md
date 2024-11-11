@@ -25,7 +25,7 @@ Link to the paper: <a href='https://arxiv.org/abs/2202.06991#:~:text=In%20this%2
   In this paper,given a user query, a transformer is trained to directly provide the document id. The idea is to store all the information of the documents in the parameters of the transformer. An analog to this, is a student who studies for exams. The student studies all her textbooks and learns their content. After learning, the student now knows which textbook has what information. During exams, when questions are posed, the student maps the question to the relevent textbook and provides the answer.
   
   The paper uses the below model design :
- ![image](https://user-images.githubusercontent.com/36926868/169647893-2fcaff7f-5c20-4687-9386-e004756fffd0.png)
+ ![image](images/structure.png)
 
   In this model we can see 2 stages:
   1. **Indexing stage:** This is the encoder part where the model learns the content of the document and maps the document to a document id.
@@ -39,7 +39,7 @@ Link to the paper: <a href='https://arxiv.org/abs/2202.06991#:~:text=In%20this%2
   3. **Bidirectional:** This is combination of Input2Target and Target2Input.
   4. **Span Corruption:** The document id is appended to the docuemnt tokens and span corruption is done. Span corruption is a method where tokens are dropped. 
   
-  ### 1.2. Docuement Representation Stategies:
+  ### 1.2. Document Representation Stategies:
   1. **Direct Indexing:** This strategy takes the first L tokens of the document only. The order of words is preserved.
   2. **Set Indexing:** This strategy removes any repeated words and stopwords from the document. The resultant document is then passed to the model. A disadvantage of this method could be that the context may be lost when repeated words are removed. 
 eg. Sentence: "I was happy since my son was happy".
@@ -51,13 +51,13 @@ Here if the second occurance of happy is removed, then the context is lost and i
 2. **Naively Structured Identifiers:** Similar to the Unstructured Atomic Identifiers but here the integers are tokenizable strings. For example, if a docid is 12345, then each of the 1,2,3,4 are tokenized and the decoder would need to output each of these individually.
 3. **Semantically Structured Identifiers:** In this approach, the docid would have some meaning. For example, if the docid is 123, this would mean that that 1 is the high level topic, then 2 is it's sub-level and 3 is the next sub-level and so on. Below is it's visualization from the paper:
 
-![image](https://user-images.githubusercontent.com/36926868/169647333-21144935-859e-4d6d-ac38-32f6a9e70591.png)
+![image](images/beam_search.png)
 
 ### 1.4. The Paper's Impementation Details:
 
 1. **Dataset:** [Natural Questions(NQ)](https://ai.google.com/research/NaturalQuestions/download). This dataset contains 307K query-document pairs where the queries are natural language questions and the documents are wikipedia articles.
 2. **Model:** T5 model
-3. **Indexing Stategy:** Input2Target
+3. **Indexing Strategy:** Input2Target
 4. **Document Id representation:** Naively Structured Identifiers
 
 ## 2. Implementation Of The paper In This Repo:
@@ -98,8 +98,8 @@ Here if the second occurance of happy is removed, then the context is lost and i
 
 
 ### 2.6. Loss And Accuracy Plots:
-![image](https://user-images.githubusercontent.com/36926868/170760398-59bc743c-8e80-4475-a702-a35a7a024c46.png)
-![image](https://user-images.githubusercontent.com/36926868/170760797-06afe39e-b937-42d6-a8d4-606a22e12f3a.png)
+![image](images/loss.png)
+![image](images/accuracy.png)
 
 
 
