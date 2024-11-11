@@ -1,0 +1,49 @@
+{
+  "os": "Linux-5.4.0-198-generic-x86_64-with-glibc2.17",
+  "python": "3.8.20",
+  "startedAt": "2024-11-11T06:20:46.176565Z",
+  "program": "train.py",
+  "codePath": "train.py",
+  "git": {
+    "remote": "https://github.com/trunghoang2002/DSI-transformers.git",
+    "commit": "d8ed24eb9ba4fb4d64bf8004e9db2b5f79d79edb"
+  },
+  "email": "trunghoang04122002@gmail.com",
+  "root": "/home/hoang/DSI-transformers",
+  "host": "vjtechnologies",
+  "username": "hoang",
+  "executable": "/home/hoang/.conda/envs/dsi/bin/python",
+  "codePathLocal": "train.py",
+  "cpu_count": 40,
+  "cpu_count_logical": 80,
+  "gpu": "NVIDIA GeForce RTX 4090",
+  "gpu_count": 2,
+  "disk": {
+    "/": {
+      "total": "7872193945600",
+      "used": "6895079927808"
+    }
+  },
+  "memory": {
+    "total": "270052306944"
+  },
+  "cpu": {
+    "count": 40,
+    "countLogical": 80
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce RTX 4090",
+      "memoryTotal": "25757220864",
+      "cudaCores": 16384,
+      "architecture": "Ada"
+    },
+    {
+      "name": "NVIDIA GeForce RTX 4090",
+      "memoryTotal": "25757220864",
+      "cudaCores": 16384,
+      "architecture": "Ada"
+    }
+  ],
+  "cudaVersion": "12.2"
+}
