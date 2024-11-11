@@ -29,7 +29,9 @@ class IndexingTrainDataset(Dataset):
         return self.total_len
 
     def __getitem__(self, item):
+        # print("item:", item)
         data = self.train_data[item]
+        # print("train_data[item]:", data)
 
         input_ids = self.tokenizer(data['text'],
                                    return_tensors="pt",
