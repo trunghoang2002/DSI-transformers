@@ -6,7 +6,7 @@ import torch
 import wandb
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
+import argparse
 
 class QueryEvalCallback(TrainerCallback):
     def __init__(self, test_dataset, logger, restrict_decode_vocab, args: TrainingArguments, tokenizer: T5Tokenizer):
@@ -27,7 +27,9 @@ class QueryEvalCallback(TrainerCallback):
             num_workers=self.args.dataloader_num_workers,
         )
 
+    # use to evalute the 'real' eval set or test_dataset in this code
     def on_epoch_end(self, args, state, control, **kwargs):
+        '''Event called at the end of an epoch.'''
         hit_at_1 = 0
         hit_at_10 = 0
         model = kwargs['model'].eval()
@@ -53,8 +55,9 @@ class QueryEvalCallback(TrainerCallback):
                             hit_at_1 += 1
         self.logger.log({"Hits@1": hit_at_1 / len(self.test_dataset), "Hits@10": hit_at_10 / len(self.test_dataset)})
 
-
+# use to evaluate the 'fake' eval set
 def compute_metrics(eval_preds):
+    '''The function that will be used to compute metrics at evaluation'''
     num_predict = 0
     num_correct = 0
     for predict, label in zip(eval_preds.predictions, eval_preds.label_ids):
@@ -68,36 +71,29 @@ def compute_metrics(eval_preds):
     return {'accuracy': num_correct / num_predict}
 
 
-def main():
-    model_name = "t5-large"
-    L = 32  # only use the first 32 tokens of documents (including title)
+def main(args):
+    model_name = args.model_name
+    L = args.max_length  # only use the first 32 tokens of documents (including title)
+    max_steps = args.max_steps
 
     # We use wandb to log Hits scores after each epoch. Note, this script does not save model checkpoints.
     wandb.login()
-    wandb.init(project="DSI", name='NQ-10k-t5-large')
+    wandb.init(project="DSI", name=args.wandb_name)
 
-    tokenizer = T5Tokenizer.from_pretrained(model_name, cache_dir='cache')
-    model = T5ForConditionalGeneration.from_pretrained(model_name, cache_dir='cache')
+    tokenizer = T5Tokenizer.from_pretrained(model_name, cache_dir=args.cache_dir)
+    model = T5ForConditionalGeneration.from_pretrained(model_name, cache_dir=args.cache_dir)
 
-    # train_dataset = IndexingTrainDataset(path_to_data='data/NQ/NQ_10k_multi_task_train.jsonl',
-    train_dataset = IndexingTrainDataset(path_to_data='data/NQ/test_train.jsonl',
-                                         max_length=L,
-                                         cache_dir='cache',
-                                         tokenizer=tokenizer)
+    train_dataset = IndexingTrainDataset(path_to_data=args.train_data, max_length=L, cache_dir=args.cache_dir, tokenizer=tokenizer)
+    eval_dataset = IndexingTrainDataset(path_to_data=args.eval_data, max_length=L, cache_dir=args.cache_dir, tokenizer=tokenizer)
+    test_dataset = IndexingTrainDataset(path_to_data=args.test_data, max_length=L, cache_dir=args.cache_dir, tokenizer=tokenizer)
+    
     
     # This eval set is really not the 'eval' set but used to report if the model can memorise (index) all training data points.
     # eval_dataset = IndexingTrainDataset(path_to_data='data/NQ/NQ_10k_multi_task_train.jsonl',
-    eval_dataset = IndexingTrainDataset(path_to_data='data/NQ/test_train.jsonl',
-                                        max_length=L,
-                                        cache_dir='cache',
-                                        tokenizer=tokenizer)
+
     
     # This is the actual eval set.
     # test_dataset = IndexingTrainDataset(path_to_data='data/NQ/NQ_10k_valid.jsonl',
-    test_dataset = IndexingTrainDataset(path_to_data='data/NQ/test_val.jsonl',
-                                        max_length=L,
-                                        cache_dir='cache',
-                                        tokenizer=tokenizer)
 
     ################################################################
     # docid generation constrain, we only generate integer docids.
@@ -117,33 +113,27 @@ def main():
         return INT_TOKEN_IDS
     ################################################################
 
-    # max_steps=10000
-    max_steps=100
-    # save_steps = eval_steps = warmup_steps = max_steps // 50
-    save_steps = eval_steps = warmup_steps = max_steps // 2
-    general_batch_size = 2
-
     # https://huggingface.co/docs/transformers/main_classes/trainer#transformers.TrainingArguments
     training_args = TrainingArguments(
-        output_dir="./results",
-        learning_rate=0.0005,
-        warmup_steps=warmup_steps,
-        # weight_decay=0.01,
-        per_device_train_batch_size=general_batch_size,
-        per_device_eval_batch_size=general_batch_size,
-        evaluation_strategy='steps',
-        eval_steps=eval_steps,
-        max_steps=max_steps,
-        dataloader_drop_last=False,  # necessary
-        report_to='wandb',
-        logging_steps=50,
-        save_strategy='steps',
-        save_steps=save_steps,
-        save_total_limit=1,
-        load_best_model_at_end=True,
-        # fp16=True,  # gives 0/nan loss at some point during training, seems this is a transformers bug.
-        dataloader_num_workers=10,
-        # gradient_accumulation_steps=2
+        output_dir=args.output_dir,
+        learning_rate=args.learning_rate,
+        warmup_steps=args.warmup_steps,
+        weight_decay=args.weight_decay,
+        per_device_train_batch_size=args.per_device_train_batch_size,
+        per_device_eval_batch_size=args.per_device_eval_batch_size,
+        evaluation_strategy=args.evaluation_strategy,
+        eval_steps=args.eval_steps,
+        max_steps=args.max_steps,
+        dataloader_drop_last=args.dataloader_drop_last,
+        report_to=args.report_to,
+        logging_steps=args.logging_steps,
+        save_strategy=args.save_strategy,
+        save_steps=args.save_steps,
+        save_total_limit=args.save_total_limit,
+        load_best_model_at_end=args.load_best_model_at_end,
+        fp16=args.fp16,
+        dataloader_num_workers=args.dataloader_num_workers,
+        gradient_accumulation_steps=args.gradient_accumulation_steps
     )
 
     trainer = IndexingTrainer(
@@ -160,9 +150,41 @@ def main():
         callbacks=[QueryEvalCallback(test_dataset, wandb, restrict_decode_vocab, training_args, tokenizer)],
         restrict_decode_vocab=restrict_decode_vocab
     )
-    trainer.train(
-    )
+    trainer.train()
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Training script for document indexing model")
+
+    # Các tham số của TrainingArguments
+    parser.add_argument("--output_dir", type=str, default="./results", help="Output directory for model checkpoints and logs")
+    parser.add_argument("--learning_rate", type=float, default=0.0005, help="Learning rate for training")
+    parser.add_argument("--warmup_steps", type=int, default=50, help="Number of warmup steps")
+    parser.add_argument("--weight_decay", type=float, default=0.0, help="Weight decay factor")
+    parser.add_argument("--per_device_train_batch_size", type=int, default=2, help="Training batch size per device")
+    parser.add_argument("--per_device_eval_batch_size", type=int, default=2, help="Evaluation batch size per device")
+    parser.add_argument("--evaluation_strategy", type=str, default='steps', choices=['no', 'steps', 'epoch'], help="Evaluation strategy to use")
+    parser.add_argument("--eval_steps", type=int, default=50, help="Number of steps for evaluation")
+    parser.add_argument("--max_steps", type=int, default=100, help="Total number of training steps")
+    parser.add_argument("--dataloader_drop_last", type=bool, default=False, help="Whether to drop last incomplete batch")
+    parser.add_argument("--report_to", type=str, default='wandb', help="Reporting tool for logging (e.g., wandb, tensorboard)")
+    parser.add_argument("--logging_steps", type=int, default=50, help="Number of steps for logging")
+    parser.add_argument("--save_strategy", type=str, default='steps', choices=['no', 'steps', 'epoch'], help="Save strategy to use")
+    parser.add_argument("--save_steps", type=int, default=50, help="Number of steps before saving a checkpoint")
+    parser.add_argument("--save_total_limit", type=int, default=1, help="Limit of total saved checkpoints")
+    parser.add_argument("--load_best_model_at_end", type=bool, default=True, help="Whether to load the best model at the end")
+    parser.add_argument("--fp16", type=bool, default=False, help="Whether to use 16-bit (mixed) precision training")
+    parser.add_argument("--dataloader_num_workers", type=int, default=10, help="Number of workers for data loading")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of gradient accumulation steps")
+
+    # Các tham số bổ sung
+    parser.add_argument("--model_name", type=str, default="t5-large", help="Name of the model to use")
+    parser.add_argument("--max_length", type=int, default=32, help="Maximum token length for documents")
+    parser.add_argument("--train_data", type=str, default="data/NQ/test_train.jsonl", help="Path to training data")
+    parser.add_argument("--eval_data", type=str, default="data/NQ/test_train.jsonl", help="Path to evaluation data")
+    parser.add_argument("--test_data", type=str, default="data/NQ/test_val.jsonl", help="Path to test data")
+    parser.add_argument("--cache_dir", type=str, default="cache", help="Directory to cache model and tokenizer")
+    parser.add_argument("--wandb_name", type=str, default="NQ-10k-t5-large", help="Name for Weights & Biases logging")
+
+    args = parser.parse_args()
+    main(args)
