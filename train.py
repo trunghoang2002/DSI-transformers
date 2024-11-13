@@ -45,6 +45,8 @@ class QueryEvalCallback(TrainerCallback):
                     rank_list = self.tokenizer.batch_decode(beams,
                                                             skip_special_tokens=True)  # beam search should not return repeated docids but somehow due to T5 tokenizer there some repeats.
                     hits = np.where(np.array(rank_list)[:10] == label)[0]
+                    # print("label:", label) # ex: '4001'
+                    # print("hits:", np.array(rank_list)[:10]) # ex: ['1939' '9898' '12798' '9895' '9395' '9798' '9393' '12795' '9795' '9495']
                     if len(hits) != 0:
                         hit_at_10 += 1
                         if hits[0] == 0:
@@ -77,19 +79,22 @@ def main():
     tokenizer = T5Tokenizer.from_pretrained(model_name, cache_dir='cache')
     model = T5ForConditionalGeneration.from_pretrained(model_name, cache_dir='cache')
 
-    train_dataset = IndexingTrainDataset(path_to_data='data/NQ/NQ_10k_multi_task_train.jsonl',
+    # train_dataset = IndexingTrainDataset(path_to_data='data/NQ/NQ_10k_multi_task_train.jsonl',
+    train_dataset = IndexingTrainDataset(path_to_data='data/NQ/test_train.jsonl',
                                          max_length=L,
                                          cache_dir='cache',
                                          tokenizer=tokenizer)
     
     # This eval set is really not the 'eval' set but used to report if the model can memorise (index) all training data points.
-    eval_dataset = IndexingTrainDataset(path_to_data='data/NQ/NQ_10k_multi_task_train.jsonl',
+    # eval_dataset = IndexingTrainDataset(path_to_data='data/NQ/NQ_10k_multi_task_train.jsonl',
+    eval_dataset = IndexingTrainDataset(path_to_data='data/NQ/test_train.jsonl',
                                         max_length=L,
                                         cache_dir='cache',
                                         tokenizer=tokenizer)
     
     # This is the actual eval set.
-    test_dataset = IndexingTrainDataset(path_to_data='data/NQ/NQ_10k_valid.jsonl',
+    # test_dataset = IndexingTrainDataset(path_to_data='data/NQ/NQ_10k_valid.jsonl',
+    test_dataset = IndexingTrainDataset(path_to_data='data/NQ/test_val.jsonl',
                                         max_length=L,
                                         cache_dir='cache',
                                         tokenizer=tokenizer)
@@ -112,8 +117,11 @@ def main():
         return INT_TOKEN_IDS
     ################################################################
 
-    max_steps=10000
-    save_steps = eval_steps = warmup_steps=max_steps//50
+    # max_steps=10000
+    max_steps=100
+    # save_steps = eval_steps = warmup_steps = max_steps // 50
+    save_steps = eval_steps = warmup_steps = max_steps // 2
+    general_batch_size = 2
 
     # https://huggingface.co/docs/transformers/main_classes/trainer#transformers.TrainingArguments
     training_args = TrainingArguments(
@@ -121,8 +129,8 @@ def main():
         learning_rate=0.0005,
         warmup_steps=warmup_steps,
         # weight_decay=0.01,
-        per_device_train_batch_size=32,
-        per_device_eval_batch_size=32,
+        per_device_train_batch_size=general_batch_size,
+        per_device_eval_batch_size=general_batch_size,
         evaluation_strategy='steps',
         eval_steps=eval_steps,
         max_steps=max_steps,
@@ -133,7 +141,6 @@ def main():
         save_steps=save_steps,
         save_total_limit=1,
         load_best_model_at_end=True,
-        save_only_model=False,
         # fp16=True,  # gives 0/nan loss at some point during training, seems this is a transformers bug.
         dataloader_num_workers=10,
         # gradient_accumulation_steps=2

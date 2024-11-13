@@ -31,5 +31,11 @@ class IndexingTrainer(Trainer):
                 max_length=20,
                 prefix_allowed_tokens_fn=self.restrict_decode_vocab,
                 early_stopping=True,)
-        return (None, doc_ids, inputs['labels'])
-
+        # loss = None
+        inputs['input_ids'] = inputs['input_ids'].to(self.args.device)
+        inputs['attention_mask'] = inputs['attention_mask'].to(self.args.device)
+        inputs['labels'] = inputs['labels'].to(self.args.device)
+        loss = self.compute_loss(model, inputs).detach()
+        if prediction_loss_only:
+            return (loss, None, None)
+        return (loss, doc_ids, inputs['labels'])
