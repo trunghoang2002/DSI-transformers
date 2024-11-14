@@ -37,7 +37,7 @@ class IndexingTrainDataset(Dataset):
                                    return_tensors="pt",
                                    truncation='only_first',
                                    max_length=self.max_length).input_ids[0]
-        return input_ids, str(data['text_id'])
+        return input_ids, data['text_id']
 
 
 @dataclass

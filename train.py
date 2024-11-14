@@ -27,33 +27,33 @@ class QueryEvalCallback(TrainerCallback):
             num_workers=self.args.dataloader_num_workers,
         )
 
-    # use to evalute the 'real' eval set or test_dataset in this code
-    def on_epoch_end(self, args, state, control, **kwargs):
-        '''Event called at the end of an epoch.'''
-        hit_at_1 = 0
-        hit_at_10 = 0
-        model = kwargs['model'].eval()
-        for batch in tqdm(self.dataloader, desc='Evaluating dev queries'):
-            inputs, labels = batch
-            with torch.no_grad():
-                batch_beams = model.generate(
-                    inputs['input_ids'].to(model.device),
-                    max_length=20,
-                    num_beams=10,
-                    prefix_allowed_tokens_fn=self.restrict_decode_vocab,
-                    num_return_sequences=10,
-                    early_stopping=True, ).reshape(inputs['input_ids'].shape[0], 10, -1)
-                for beams, label in zip(batch_beams, labels):
-                    rank_list = self.tokenizer.batch_decode(beams,
-                                                            skip_special_tokens=True)  # beam search should not return repeated docids but somehow due to T5 tokenizer there some repeats.
-                    hits = np.where(np.array(rank_list)[:10] == label)[0]
-                    # print("label:", label) # ex: '4001'
-                    # print("hits:", np.array(rank_list)[:10]) # ex: ['1939' '9898' '12798' '9895' '9395' '9798' '9393' '12795' '9795' '9495']
-                    if len(hits) != 0:
-                        hit_at_10 += 1
-                        if hits[0] == 0:
-                            hit_at_1 += 1
-        self.logger.log({"Hits@1": hit_at_1 / len(self.test_dataset), "Hits@10": hit_at_10 / len(self.test_dataset)})
+    # use to evalute the test dataset
+    # def on_epoch_end(self, args, state, control, **kwargs):
+    #     '''Event called at the end of an epoch.'''
+    #     hit_at_1 = 0
+    #     hit_at_10 = 0
+    #     model = kwargs['model'].eval()
+    #     for batch in tqdm(self.dataloader, desc='Evaluating dev queries'):
+    #         inputs, labels = batch
+    #         with torch.no_grad():
+    #             batch_beams = model.generate(
+    #                 inputs['input_ids'].to(model.device),
+    #                 max_length=20,
+    #                 num_beams=10,
+    #                 prefix_allowed_tokens_fn=self.restrict_decode_vocab,
+    #                 num_return_sequences=10,
+    #                 early_stopping=True, ).reshape(inputs['input_ids'].shape[0], 10, -1)
+    #             for beams, label in zip(batch_beams, labels):
+    #                 rank_list = self.tokenizer.batch_decode(beams,
+    #                                                         skip_special_tokens=True)  # beam search should not return repeated docids but somehow due to T5 tokenizer there some repeats.
+    #                 hits = np.where(np.array(rank_list)[:10] == label)[0]
+    #                 # print("label:", label) # ex: '4001'
+    #                 # print("rank_list:", np.array(rank_list)[:10]) # ex: ['1939' '9898' '12798' '9895' '9395' '9798' '9393' '12795' '9795' '9495']
+    #                 if len(hits) != 0:
+    #                     hit_at_10 += 1
+    #                     if hits[0] == 0:
+    #                         hit_at_1 += 1
+    #     self.logger.log({"Hits@1": hit_at_1 / len(self.test_dataset), "Hits@10": hit_at_10 / len(self.test_dataset)})
 
 # use to evaluate the 'fake' eval set
 def compute_metrics(eval_preds):
@@ -72,16 +72,14 @@ def compute_metrics(eval_preds):
 
 
 def main(args):
-    model_name = args.model_name
     L = args.max_length  # only use the first 32 tokens of documents (including title)
-    max_steps = args.max_steps
 
     # We use wandb to log Hits scores after each epoch. Note, this script does not save model checkpoints.
     wandb.login()
     wandb.init(project="DSI", name=args.wandb_name)
 
-    tokenizer = T5Tokenizer.from_pretrained(model_name, cache_dir=args.cache_dir)
-    model = T5ForConditionalGeneration.from_pretrained(model_name, cache_dir=args.cache_dir)
+    tokenizer = T5Tokenizer.from_pretrained(args.model_name_or_path, cache_dir=args.cache_dir)
+    model = T5ForConditionalGeneration.from_pretrained(args.model_name_or_path, cache_dir=args.cache_dir)
 
     train_dataset = IndexingTrainDataset(path_to_data=args.train_data, max_length=L, cache_dir=args.cache_dir, tokenizer=tokenizer)
     eval_dataset = IndexingTrainDataset(path_to_data=args.eval_data, max_length=L, cache_dir=args.cache_dir, tokenizer=tokenizer)
@@ -178,7 +176,7 @@ if __name__ == "__main__":
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of gradient accumulation steps")
 
     # Các tham số bổ sung
-    parser.add_argument("--model_name", type=str, default="t5-large", help="Name of the model to use")
+    parser.add_argument("--model_name_or_path", type=str, default="t5-large", help="Name of the model to use")
     parser.add_argument("--max_length", type=int, default=32, help="Maximum token length for documents")
     parser.add_argument("--train_data", type=str, default="data/NQ/test_train.jsonl", help="Path to training data")
     parser.add_argument("--eval_data", type=str, default="data/NQ/test_train.jsonl", help="Path to evaluation data")
